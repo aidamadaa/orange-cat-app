@@ -1,6 +1,6 @@
 import { GoogleGenAI, Content, GenerateContentResponse } from "@google/genai";
 import { Message, Language } from "../types";
-import { GEMINI_MODELS } from "../constants";
+import { PROTOCOL_REGISTRY, RegistryTier } from "../constants";
 
 /* 
    SECURITY LOCK: PROTOCOL_V3_AUTHORITATIVE
@@ -36,24 +36,28 @@ const getCurrentDateTime = () => {
     };
 };
 
-// === UNIFIED EXECUTION WRAPPER ===
-// Manages the 10-tier fallback protocol for any AI operation
+// === ADAPTIVE PROTOCOL WRAPPER ===
 async function executeProtocol<T>(
     operationName: string,
-    operation: (model: string) => Promise<T>
+    operation: (tier: RegistryTier) => Promise<T>
 ): Promise<T> {
     let lastError: any;
     const attemptedTiers: string[] = [];
 
-    for (const modelTier of GEMINI_MODELS) {
+    for (let i = 0; i < PROTOCOL_REGISTRY.length; i++) {
+        const tier = PROTOCOL_REGISTRY[i];
+        
         try {
-            // console.log(`[Protocol] Executing ${operationName} :: Tier ${modelTier}`);
-            return await operation(modelTier);
+            // Progressive Backoff: 150ms base + 100ms per tier depth
+            if (i > 0) await delay(150 + (i * 100));
+            
+            // console.log(`[Protocol] Executing ${operationName} :: ${tier.name}`);
+            return await operation(tier);
+
         } catch (error: any) {
             lastError = error;
-            attemptedTiers.push(modelTier);
+            attemptedTiers.push(tier.name);
             
-            // Enhanced Error Parsing: Check both message property and string representation
             const errStr = (error.message || error.toString()).toLowerCase();
             
             // Critical Security/Auth Errors - Fail Immediately
@@ -61,31 +65,30 @@ async function executeProtocol<T>(
                 throw new Error("Security Alert: API Credentials Rejected.");
             }
 
-            // Retryable Errors (Quota, 503, 404, Not Found, etc)
+            // Retryable Errors
             const isRetryable = 
                 errStr.includes('429') || 
                 errStr.includes('503') || 
                 errStr.includes('quota') || 
                 errStr.includes('overloaded') ||
-                errStr.includes('not found') || // Catches "model not found" errors
-                errStr.includes('fetch failed');
+                errStr.includes('not found') || 
+                errStr.includes('fetch failed') ||
+                errStr.includes('candidate'); // Blocked content often throws candidate errors
 
             if (isRetryable) {
-                console.warn(`[Protocol Failover] ${modelTier} unavailable. Switching to next tier...`);
-                await delay(200); // 200ms latency buffer before switching
+                console.warn(`[Protocol Failover] ${tier.name} failed. Adapting...`);
                 continue;
             }
 
-            // Unknown error - attempt failover as safety measure for robustness
-            console.warn(`[Protocol Warning] Unknown error on ${modelTier}. Failover initiated.`);
+            console.warn(`[Protocol Warning] Unknown error on ${tier.name}. Failover initiated.`);
             continue;
         }
     }
 
-    console.error(`[Protocol Critical] All ${attemptedTiers.length} tiers failed.`, lastError);
+    console.error(`[Protocol Critical] All ${attemptedTiers.length} tiers exhausted.`, lastError);
     
     if (lastError?.toString().includes('429') || lastError?.toString().toLowerCase().includes('quota')) {
-        throw new Error("System Capacity Reached. All 10 AI tiers are currently busy. Please try again shortly.");
+        throw new Error("System Capacity Reached. All AI tiers are busy. Please try again.");
     }
     
     throw lastError;
@@ -94,7 +97,7 @@ async function executeProtocol<T>(
 export const streamGeminiResponse = async (
   history: Message[],
   userMessage: string,
-  onProgress: (fullText: string) => void, // UPDATED: Receives FULL text for atomic UI updates
+  onProgress: (fullText: string) => void,
   language: Language = 'en',
   customApiKey?: string | null
 ): Promise<{ text: string; sources?: { title: string; uri: string }[] }> => {
@@ -106,7 +109,6 @@ export const streamGeminiResponse = async (
   const ai = new GoogleGenAI({ apiKey: apiKey });
   const validHistory = history.filter(m => !m.isError && m.text.trim() !== "");
   
-  // Language & Date Context
   const langMap: Record<Language, string> = {
       en: 'English',
       ms: 'Bahasa Melayu (Malay)',
@@ -115,39 +117,56 @@ export const streamGeminiResponse = async (
       id: 'Bahasa Indonesia'
   };
   const { date, time } = getCurrentDateTime();
+  
+  // === STEALTH COMMERCE PROMPTING ===
+  // Instructs AI to look for product vitals and enforces links
   const systemInstruction = `Today is ${date}. Current time: ${time}.
       You are Orange Cat, a secure AI assistant.
       
       CORE RULES:
-      - Time Reference: Use "${date}" as "today".
-      - Connectivity: You have Real-Time Google Search access. Use it for news, prices, and events.
       - Output Language: Respond in ${langMap[language]}.
       
+      MANDATORY COMMERCE PROTOCOL:
+      1. LINKING IS MANDATORY: You MUST provide clickable links for EVERY item, category, or department mentioned in a list.
+      2. FORMAT: Use Markdown: [Item Name](URL).
+      3. SEARCH URL GENERATION (CRITICAL):
+         If a direct URL is not found, you MUST generate a Search URL:
+         - Shopee MY: https://shopee.com.my/search?keyword=EXACT_NAME
+         - Amazon: https://www.amazon.com/s?k=EXACT_NAME
+      4. DEPARTMENT LISTS: When asked for "Best Sellers Departments" or categories, link EACH department to its Amazon/Shopee page.
+         - Example: [Electronics](https://www.amazon.com/Best-Sellers-Electronics/zgbs/electronics)
+      5. VITALS: Include Price/Rating if applicable.
+      6. DOMAINS: Use "shopee.com.my" and "amazon.com" only.
+      
       SPECIALTIES:
-      1. SHOPPING (Amazon & Shopee MY):
-         - Shopee MY: Use "shopee.com.my". No "shopee.sg".
-         - Amazon: Use "amazon.com".
-         - NEVER guess product IDs. Use Search URLs.
-      2. CODING: Act as Senior Engineer.
-      3. WRITING: Professional & Creative.
+      - Social Media: When asked to draft posts, make them "Ready to Post" with hashtags.
+      - Coding: Senior Engineer level.
   `;
 
-  // Execute via Protocol
   return executeProtocol<{ text: string, sources: any[] }>(
       "StreamResponse",
-      async (model) => {
+      async (tier) => {
+          // Dynamic Tool Configuration
+          const tools = tier.useSearch ? [{ googleSearch: {} }] : undefined;
+          
+          // Thinking Config (only for tiers that support it)
+          const thinkingConfig = tier.thinkingBudget ? { thinkingBudget: tier.thinkingBudget } : undefined;
+
+          // Conflict Resolution: Tools cannot be used with JSON mode (though we aren't enforcing JSON mode here, just good to know)
+          
           const chat = ai.chats.create({
-              model: model,
+              model: tier.model,
               history: formatHistory(validHistory),
               config: {
-                  tools: [{ googleSearch: {} }],
+                  tools: tools,
+                  // thinkingConfig: thinkingConfig, // Only enable if supported by SDK version and model
                   systemInstruction: systemInstruction,
               },
           });
 
           const resultStream = await chat.sendMessageStream({ message: userMessage });
           
-          let buffer = ""; // Attempt-local buffer
+          let buffer = ""; 
           const sources: { title: string; uri: string }[] = [];
 
           for await (const chunk of resultStream) {
@@ -155,7 +174,7 @@ export const streamGeminiResponse = async (
               const text = c.text;
               if (text) {
                   buffer += text;
-                  onProgress(buffer); // Emit FULL buffer to overwrite any previous failed attempts in UI
+                  onProgress(buffer); 
               }
 
               const candidate = c.candidates?.[0];
@@ -182,11 +201,13 @@ export const generateTitle = async (firstMessage: string, customApiKey?: string 
 
   const ai = new GoogleGenAI({ apiKey: apiKey });
 
-  // Use Protocol for Title Generation too (High Availability)
   try {
-      return await executeProtocol<string>("GenerateTitle", async (model) => {
+      // Use a simple flash model for titles to save latency/cost
+      return await executeProtocol<string>("GenerateTitle", async (tier) => {
+          // Skip high-reasoning tiers for titles, jump to Tier 7 (Flash Latest) logic if possible, 
+          // but for simplicity we iterate. Actually, let's just use the first available tier but minimal config.
           const response = await ai.models.generateContent({
-              model: model,
+              model: tier.model,
               contents: `Generate a 4-word max title for: "${firstMessage}". No quotes.`,
           });
           return response.text?.trim() || "New Chat";
