@@ -9,34 +9,51 @@
 */
 
 // Primary Model (Reference only, protocol uses registry)
-export const GEMINI_MODEL = 'gemini-2.0-pro-exp-02-05';
+export const GEMINI_MODEL = 'gemini-3-pro-preview';
 
-// === DECUPLE AI REGISTRY (v3.2) ===
-// The Fallback Protocol: A prioritized hierarchy of 10 AI models.
-// Strictly enforces Gemini 2.0 and 3.0 series. NO LEGACY MODELS.
-export const GEMINI_MODELS = [
-    // TIER 1: INTELLIGENCE & REASONING (The "Brain")
-    'gemini-2.0-pro-exp-02-05',             // 1. Newest Pro Experimental
-    'gemini-2.0-flash-thinking-exp-01-21',  // 2. Deep Thinking (Chain of Thought)
+export interface RegistryTier {
+    model: string;
+    useSearch: boolean;
+    name: string;
+    thinkingBudget?: number;
+}
+
+// === DECUPLE AI REGISTRY (v3.3 - 10 TIER RESILIENCE LOOP) ===
+// 1. Pro Intelligence (Search)
+// 2. Pro Intelligence (Redundant)
+// 3. Performance Flash (Search)
+// 4. Performance Flash (Redundant)
+// 5. Grounding Fallback (Pro - No Search)
+// 6. Grounding Fallback (Flash - No Search)
+// 7. Availability Optimized (Latest Flash)
+// 8. Availability Optimized (Lite)
+// 9. Legacy Fallback (2.0 Flash)
+// 10. Ultimate Fallback (1.5 Flash)
+
+export const PROTOCOL_REGISTRY: RegistryTier[] = [
+    // TIER 1-2: PRO INTELLIGENCE (Max Reasoning + Search)
+    { model: 'gemini-3-pro-preview', useSearch: true, thinkingBudget: 32000, name: 'Tier 1: Gemini 3 Pro (Deep Search)' },
+    { model: 'gemini-3-pro-preview', useSearch: true, thinkingBudget: 16000, name: 'Tier 2: Gemini 3 Pro (Retry)' },
+
+    // TIER 3-4: PERFORMANCE FLASH (Speed + Search)
+    { model: 'gemini-3-flash-preview', useSearch: true, name: 'Tier 3: Gemini 3 Flash (Speed Search)' },
+    { model: 'gemini-3-flash-preview', useSearch: true, name: 'Tier 4: Gemini 3 Flash (Retry)' },
+
+    // TIER 5-6: GROUNDING FALLBACK (Bypass Regional Search Blocks)
+    { model: 'gemini-3-pro-preview', useSearch: false, name: 'Tier 5: Gemini 3 Pro (Direct)' },
+    { model: 'gemini-3-flash-preview', useSearch: false, name: 'Tier 6: Gemini 3 Flash (Direct)' },
     
-    // TIER 2: HIGH-SPEED PREVIEWS (The "Reflex")
-    'gemini-3-pro-preview',                 // 3. Next-Gen Preview (Complex Tasks)
-    'gemini-2.0-flash-exp',                 // 4. Flash Experimental (Speed)
+    // TIER 7-8: AVAILABILITY OPTIMIZED
+    { model: 'gemini-flash-latest', useSearch: false, name: 'Tier 7: Flash Latest' },
+    { model: 'gemini-flash-lite-latest', useSearch: false, name: 'Tier 8: Flash Lite' },
     
-    // TIER 3: NEW LITE ARCHITECTURE
-    'gemini-2.0-flash-lite-preview-02-05',  // 5. Newest Lite Architecture
-    
-    // TIER 4: STABLE PREVIEWS
-    'gemini-3-flash-preview',               // 6. Next-Gen Flash
-    'gemini-exp-1206',                      // 7. Stable Snapshot
-    
-    // TIER 5: PRODUCTION ALIASES (Auto-updates to best available)
-    'gemini-flash-latest',                  // 8. General Flash Alias
-    'gemini-flash-lite-latest',             // 9. General Lite Alias
-    
-    // TIER 6: ULTIMATE FALLBACK
-    'gemini-2.0-flash'                      // 10. Base 2.0 Flash
+    // TIER 9-10: LEGACY / STABILITY LAYER
+    { model: 'gemini-2.0-flash', useSearch: false, name: 'Tier 9: Gemini 2.0 Flash' },
+    { model: 'gemini-1.5-flash', useSearch: false, name: 'Tier 10: Gemini 1.5 Flash' }
 ];
+
+// Compatibility export
+export const GEMINI_MODELS = PROTOCOL_REGISTRY.map(t => t.model);
 
 // Updated to V3 for Master Key Architecture
 export const STORAGE_KEY = 'gemini_secure_data_v3';
