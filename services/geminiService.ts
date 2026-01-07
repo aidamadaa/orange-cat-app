@@ -4,6 +4,9 @@ import { GEMINI_MODELS } from "../constants";
 
 /* 
    SECURITY LOCK: PROTOCOL_V3_AUTHORITATIVE
+   SYSTEM INTEGRITY: LOCKED
+   ACCESS: ADMIN_ONLY
+   
    This service handles the Decuple AI Registry Failover Protocol.
    Do not modify failover logic without authorization.
 */
@@ -50,29 +53,30 @@ async function executeProtocol<T>(
             lastError = error;
             attemptedTiers.push(modelTier);
             
-            const errStr = error.toString().toLowerCase();
+            // Enhanced Error Parsing: Check both message property and string representation
+            const errStr = (error.message || error.toString()).toLowerCase();
             
             // Critical Security/Auth Errors - Fail Immediately
             if (errStr.includes('key') || errStr.includes('unauthenticated') || errStr.includes('permission')) {
                 throw new Error("Security Alert: API Credentials Rejected.");
             }
 
-            // Retryable Errors (Quota, 503, 404, etc)
+            // Retryable Errors (Quota, 503, 404, Not Found, etc)
             const isRetryable = 
                 errStr.includes('429') || 
                 errStr.includes('503') || 
                 errStr.includes('quota') || 
                 errStr.includes('overloaded') ||
-                errStr.includes('not found') ||
+                errStr.includes('not found') || // Catches "model not found" errors
                 errStr.includes('fetch failed');
 
             if (isRetryable) {
-                console.warn(`[Protocol Failover] ${modelTier} failed. Switching to next tier...`);
+                console.warn(`[Protocol Failover] ${modelTier} unavailable. Switching to next tier...`);
                 await delay(200); // 200ms latency buffer before switching
                 continue;
             }
 
-            // Unknown error - attempt failover as safety measure
+            // Unknown error - attempt failover as safety measure for robustness
             console.warn(`[Protocol Warning] Unknown error on ${modelTier}. Failover initiated.`);
             continue;
         }
