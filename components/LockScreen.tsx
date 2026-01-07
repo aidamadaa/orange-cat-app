@@ -474,7 +474,7 @@ export const LockScreen: React.FC<LockScreenProps> = ({ mode, onSetup, onLogin, 
              </div>
         )}
         
-        {screenState !== 'landing' && screenState !== 'login' && screenState !== 'setup_recovery_show' && (
+        {screenState !== 'landing' && screenState !== 'login' && (
              <div className="mt-6 text-center">
                  <button 
                     onClick={() => { 
