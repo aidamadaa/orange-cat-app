@@ -19,7 +19,7 @@ interface SidebarProps {
   onBackup: () => void;
   onRestore: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onShowAbout: () => void;
-  onShowSettings: () => void; // Added Prop
+  onShowSettings: () => void;
   language: Language;
   onSetLanguage: (lang: Language) => void;
 }
@@ -40,40 +40,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onBackup,
   onRestore,
   onShowAbout,
-  onShowSettings, // Destructure
+  onShowSettings,
   language,
   onSetLanguage
 }) => {
   const sortedSessions = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [shareText, setShareText] = useState(translations[language].shareApp);
-  
   const t = translations[language];
-
-  const handleShare = async () => {
-    // FIX: Use .origin to share only the main domain (e.g., https://app.com) 
-    // instead of .href which might include trailing slashes or fragments.
-    const cleanUrl = window.location.origin;
-
-    const shareData = {
-      title: 'Orange Cat',
-      text: 'Just met Orange Cat 🍊🐱. A private, zero-server AI assistant. Powered by Gemini. Check it out:',
-      url: cleanUrl
-    };
-
-    if (navigator.share) {
-      try {
-        await navigator.share(shareData);
-      } catch (err) {
-        // User canceled share
-      }
-    } else {
-      navigator.clipboard.writeText(`${shareData.text} ${shareData.url}`).then(() => {
-        setShareText(t.copied + '!');
-        setTimeout(() => setShareText(t.shareApp), 2000);
-      });
-    }
-  };
 
   return (
     <>
@@ -103,7 +76,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className="flex items-center gap-3 font-semibold text-gray-800 hover:opacity-80 transition-opacity group"
             title="App Info & Privacy"
           >
-            {/* Logo without container */}
             <Icons.Cat size={32} className="text-orange-600 group-hover:scale-105 transition-transform" />
             <span className="text-lg tracking-tight">Orange Cat</span>
           </button>
@@ -272,20 +244,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
              <span>{t.resetApp}</span>
            </button>
 
-           {/* Buy Me A Coffee - Added */}
+           {/* Buy Me A Coffee - RE-ENGINEERED */}
            <a
               href="https://buymeacoffee.com/techlogix_io"
               target="_blank"
               rel="noopener noreferrer"
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 mt-2 bg-yellow-50 hover:bg-yellow-100 text-yellow-600 rounded-lg transition-colors text-xs font-medium border border-yellow-200"
+              className="relative overflow-hidden group w-full flex items-center justify-center gap-2 px-3 py-3 mt-2 bg-amber-400 hover:bg-amber-500 text-amber-950 rounded-xl transition-all shadow-md hover:shadow-lg font-bold border border-amber-500/50"
            >
-               <Icons.Coffee size={14} />
-               <span>{t.buyCoffee}</span>
+               <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300" />
+               <Icons.HeartPulse size={16} className="animate-pulse fill-amber-900/10 text-amber-800" />
+               <span className="relative z-10">{t.buyCoffee}</span>
            </a>
 
            <div className="flex gap-2 mt-1">
              <button 
-               onClick={onShowSettings} // Settings Trigger
+               onClick={onShowSettings}
                className="flex-1 flex items-center justify-center gap-2 text-[10px] text-gray-500 hover:text-orange-600 px-2 pt-2 border-t border-gray-200 transition-colors"
                title={t.settings}
              >
