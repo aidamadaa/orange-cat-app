@@ -18,7 +18,7 @@ function App() {
     isAuthenticated,
     isSetup,
     isLoading: isSecurityLoading,
-    encryptionKey, // This is the Master Key
+    encryptionKey, // Master Key
     userEmail,
     setup,
     login,
@@ -27,7 +27,6 @@ function App() {
     nuke
   } = useSecurity();
 
-  // Pass the encryptionKey (Master Key) to useLocalStorage
   const { 
     sessions, 
     addSession, 
@@ -44,11 +43,8 @@ function App() {
   const [incognitoMode, setIncognitoMode] = useState(false);
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  
-  // Custom API Key State (Decrypted)
   const [customApiKey, setCustomApiKey] = useState<string | null>(null);
 
-  // Language State
   const [language, setLanguage] = useState<Language>(() => {
      return (localStorage.getItem('gemini_app_lang') as Language) || 'en';
   });
@@ -58,30 +54,24 @@ function App() {
       localStorage.setItem('gemini_app_lang', lang);
   };
   
-  // SECURE API KEY LOADING
+  // Secure API Key Loading
   useEffect(() => {
     const loadSecureKey = async () => {
         if (isAuthenticated && encryptionKey) {
             const encryptedKey = localStorage.getItem(USER_API_KEY);
             if (encryptedKey) {
-                // Decrypt the API key using the same Master Key as the chats
                 const decrypted = await decryptData(encryptedKey, encryptionKey);
-                if (decrypted) {
-                    setCustomApiKey(decrypted);
-                }
+                if (decrypted) setCustomApiKey(decrypted);
             }
         } else if (!isAuthenticated) {
-            // Clear from memory on logout
             setCustomApiKey(null);
         }
     };
     loadSecureKey();
   }, [isAuthenticated, encryptionKey]);
 
-  // SECURE API KEY SAVING
   const handleSaveApiKey = async (rawKey: string) => {
       if (encryptionKey) {
-          // Encrypt with Master Key
           const encrypted = await encryptData(rawKey, encryptionKey);
           localStorage.setItem(USER_API_KEY, encrypted);
           setCustomApiKey(rawKey);
@@ -93,15 +83,12 @@ function App() {
       setCustomApiKey(null);
   };
   
-  // Initialize or restore session
   useEffect(() => {
     if (isLoaded && isAuthenticated && !currentSessionId) {
       if (sessions.length > 0) {
-        // Open most recent session
         const mostRecent = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt)[0];
         setCurrentSessionId(mostRecent.id);
       } else {
-        // Create new session if none exist
         handleNewChat();
       }
     }
@@ -112,11 +99,8 @@ function App() {
   }, [sessions, currentSessionId]);
 
   const handleNewChat = useCallback(() => {
-    // Prevent creating duplicate empty sessions
     const currentSession = sessions.find(s => s.id === currentSessionId);
-    if (currentSession && currentSession.messages.length === 0) {
-        return; 
-    }
+    if (currentSession && currentSession.messages.length === 0) return;
 
     const newSession: ChatSession = {
       id: uuidv4(),
@@ -143,12 +127,9 @@ function App() {
     setIsLoading(true);
 
     const currentSession = sessions.find(s => s.id === currentSessionId);
-    
-    // Privacy Control: Filter history based on Incognito Mode
     const history = currentSession ? [...currentSession.messages] : []; 
     const historyPayload = incognitoMode ? [] : [...history, userMsg];
 
-    // Optimistic AI message placeholder
     const aiMsgId = uuidv4();
     const aiMsg: Message = {
       id: aiMsgId,
@@ -159,25 +140,23 @@ function App() {
     addMessageToSession(currentSessionId, aiMsg);
 
     if (currentSession && currentSession.messages.length === 0) {
-        // Pass customApiKey to title generator
         generateTitle(text, customApiKey).then(title => {
             updateSession(currentSessionId, { title });
         });
     }
 
     try {
-      let fullText = "";
       const result = await streamGeminiResponse(
         historyPayload.filter(m => m.id !== aiMsgId), 
         text, 
-        (chunk) => {
-          fullText += chunk;
+        (currentFullText) => {
+           // Protocol V3: We now receive the FULL text at each step to handle failover resets cleanly
            updateSession(currentSessionId, {
-             messages: history.concat(userMsg, { ...aiMsg, text: fullText })
+             messages: history.concat(userMsg, { ...aiMsg, text: currentFullText })
            });
         },
         language,
-        customApiKey // Pass the decrypted key
+        customApiKey
       );
       
       updateSession(currentSessionId, {
@@ -190,7 +169,6 @@ function App() {
 
     } catch (error: any) {
        const errorMessage = error.message || "Connection error. Please check your network.";
-       
        const failedMsg = { ...aiMsg, isError: true, text: `Error: ${errorMessage}` };
        const session = sessions.find(s => s.id === currentSessionId);
        if(session) {
@@ -205,19 +183,15 @@ function App() {
   const handleDeleteSession = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     deleteSession(id);
-    if (currentSessionId === id) {
-      setCurrentSessionId(null); 
-    }
+    if (currentSessionId === id) setCurrentSessionId(null); 
   };
 
-  // --- Backup & Restore Logic ---
   const handleBackup = () => {
     try {
         const data = {
             auth: localStorage.getItem(AUTH_DATA_KEY),
             chats: localStorage.getItem(STORAGE_KEY),
             email: localStorage.getItem(USER_EMAIL_KEY),
-            // We should ideally backup the API key too, but it's encrypted with Master Key so it's safe to export
             apiKey: localStorage.getItem(USER_API_KEY),
             timestamp: Date.now(),
             version: 'v3',
@@ -246,22 +220,19 @@ function App() {
     reader.onload = (event) => {
         try {
             const json = JSON.parse(event.target?.result as string);
+            if (!json.auth || !json.version || json.app !== 'OrangeCat') throw new Error("Invalid or incompatible backup file.");
             
-            if (!json.auth || !json.version || json.app !== 'OrangeCat') {
-                throw new Error("Invalid or incompatible backup file.");
-            }
-            
-            if (window.confirm("WARNING: Restoring will OVERWRITE all current data on this device. This action cannot be undone. Proceed?")) {
+            if (window.confirm("WARNING: Restoring will OVERWRITE all current data. Proceed?")) {
                 localStorage.setItem(AUTH_DATA_KEY, json.auth);
                 if (json.chats) localStorage.setItem(STORAGE_KEY, json.chats);
                 if (json.email) localStorage.setItem(USER_EMAIL_KEY, json.email);
                 if (json.apiKey) localStorage.setItem(USER_API_KEY, json.apiKey);
                 
-                alert("Restore successful! The app will now reload.");
+                alert("Restore successful! Reloading...");
                 window.location.reload();
             }
         } catch (err: any) {
-            alert("Failed to restore backup: " + err.message);
+            alert("Restore failed: " + err.message);
         }
     };
     reader.readAsText(file);
@@ -304,12 +275,12 @@ function App() {
         onCloseMobile={() => setIsSidebarOpen(false)}
         onLock={lock}
         onNuke={() => {
-            if(window.confirm("WARNING: This will permanently delete ALL encrypted chats and reset your account. This action cannot be undone.")) {
+            if(window.confirm("WARNING: This will delete ALL encrypted chats and reset your account.")) {
                 clearAllSessions();
                 nuke();
             }
         }}
-        onChangePin={() => alert("To change PIN, please use the Lock button then 'Forgot PIN?' option with your Recovery Code.")}
+        onChangePin={() => alert("To change PIN, please use the Lock button then 'Forgot PIN?' with your Recovery Code.")}
         incognitoMode={incognitoMode}
         onToggleIncognito={() => setIncognitoMode(!incognitoMode)}
         onBackup={handleBackup}
@@ -329,8 +300,8 @@ function App() {
           onNewChat={handleNewChat}
           currentTitle={currentSession?.title || 'New Chat'}
           language={language}
-          hasCustomKey={!!customApiKey} // Check if key exists
-          onOpenSettings={() => setIsSettingsOpen(true)} // Open Settings
+          hasCustomKey={!!customApiKey}
+          onOpenSettings={() => setIsSettingsOpen(true)}
         />
         {incognitoMode && (
              <div className="absolute top-16 right-4 md:right-8 z-10 flex items-center gap-2 px-3 py-1 bg-yellow-100/80 backdrop-blur text-xs text-yellow-800 rounded-full border border-yellow-200 shadow-md pointer-events-none">
