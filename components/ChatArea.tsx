@@ -28,34 +28,32 @@ const MessageActions = ({ text, language }: { text: string, language: Language }
     }).catch(err => console.error("Failed to copy", err));
   };
 
+  const handleCopySocial = (platform: 'x' | 'linkedin') => {
+      // Strip markdown for social platforms? Or keep it? Usually better to keep plain text
+      // For now we just copy raw text, users can paste. 
+      // Ideally we would strip links or format them.
+      navigator.clipboard.writeText(text).then(() => {
+          alert(`Copied for ${platform === 'x' ? 'X (Twitter)' : 'LinkedIn'}!`);
+      });
+  };
+
   const handleDownloadText = () => {
      const timestamp = new Date().toISOString().slice(0,19).replace(/:/g, '-');
      downloadFile(text, `orange-cat-output-${timestamp}.md`, 'text/markdown');
   };
 
-  // Simple Markdown Table to CSV Parser
   const extractTableToCSV = (text: string): string | null => {
     try {
         const lines = text.split('\n');
-        // Identify lines that look like table rows (contain pipes)
         const tableLines = lines.filter(l => l.trim().startsWith('|') && l.trim().endsWith('|'));
-        
-        // Need at least header and one data row
         if (tableLines.length < 2) return null;
-
-        // Remove separator lines (e.g. |---|---|)
         const dataLines = tableLines.filter(l => !l.includes('---'));
-        
         if (dataLines.length === 0) return null;
 
         const csv = dataLines.map(line => {
-            // Remove start/end pipe and split by internal pipes
             const row = line.trim();
-            // Remove first and last char (pipes) then split
             const cells = row.substring(1, row.length - 1).split('|');
-            
             return cells.map(cell => {
-                // Clean whitespace and escape quotes
                 const clean = cell.trim().replace(/"/g, '""'); 
                 return `"${clean}"`;
             }).join(',');
@@ -89,8 +87,8 @@ const MessageActions = ({ text, language }: { text: string, language: Language }
   };
 
   return (
-    <div className="flex items-center gap-1 mt-3 pt-2 border-t border-gray-100 justify-end opacity-90">
-       {/* CSV Download Button - Only visible if table detected */}
+    <div className="flex flex-wrap items-center gap-1 mt-3 pt-2 border-t border-gray-100 justify-end opacity-90">
+       {/* CSV Download */}
        {csvContent && (
          <button 
            onClick={handleDownloadCSV}
@@ -111,6 +109,22 @@ const MessageActions = ({ text, language }: { text: string, language: Language }
           <span>{t.saveText}</span>
        </button>
        
+       {/* Social Share Buttons */}
+       <button 
+          onClick={() => handleCopySocial('x')}
+          className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium text-gray-500 hover:text-black hover:bg-gray-100 rounded transition-colors"
+          title="Copy for X"
+       >
+          <span className="font-bold">X</span>
+       </button>
+       <button 
+          onClick={() => handleCopySocial('linkedin')}
+          className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium text-gray-500 hover:text-blue-700 hover:bg-gray-100 rounded transition-colors"
+          title="Copy for LinkedIn"
+       >
+          <span className="font-bold">in</span>
+       </button>
+
        <button 
           onClick={handleCopy}
           className="flex items-center gap-1.5 px-2 py-1.5 text-[10px] font-medium text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors w-16 justify-center"
@@ -150,10 +164,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const t = translations[language];
   const discoveryPrompts = getDiscoveryPrompts(language);
   
-  // Check shared key status from environment
   const hasSharedKey = (process.env.HAS_SHARED_KEY as unknown) as boolean;
 
-  // Dynamic discovery items based on language
   const SHOPPING_DISCOVERY = [
     { icon: 'Flame', label: t.shopeeFlash, prompt: discoveryPrompts[0] },
     { icon: 'ShoppingBag', label: t.shopeeMall, prompt: discoveryPrompts[1] },
@@ -174,7 +186,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       { icon: 'Search', label: t.cmdSearch, prompt: "Search Google for: ", color: "text-blue-500", bg: "bg-blue-50" },
       { icon: 'ShoppingCart', label: t.cmdShop, prompt: "Find the best price for ", color: "text-orange-500", bg: "bg-orange-50" },
       { icon: 'Code', label: t.cmdCode, prompt: "Write code to ", color: "text-green-600", bg: "bg-green-50" },
-      { icon: 'PenTool', label: t.cmdWrite, prompt: "Write a professional ", color: "text-purple-500", bg: "bg-purple-50" },
+      { icon: 'PenTool', label: t.cmdWrite, prompt: "Draft a viral social media post about ", color: "text-purple-500", bg: "bg-purple-50" },
       { icon: 'Compass', label: t.cmdTravel, prompt: "Plan a trip to ", color: "text-teal-500", bg: "bg-teal-50" },
       { icon: 'Eraser', label: t.cmdClear, action: "clear", color: "text-red-500", bg: "bg-red-50" },
   ];
@@ -187,7 +199,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Auto-resize textarea
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -262,7 +273,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         {messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-gray-500 opacity-0 animate-fadeIn relative" style={{ animationFillMode: 'forwards', animationDuration: '0.5s' }}>
             
-            {/* PAW BACKGROUND PATTERN FOR EMPTY STATE */}
             <div className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none overflow-hidden select-none">
                 <Icons.PawPrint size={100} className="absolute top-[20%] left-[15%] rotate-12" />
                 <Icons.PawPrint size={80} className="absolute bottom-[30%] right-[10%] -rotate-12" />
@@ -278,7 +288,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   {t.welcomeSubtitle}
                 </p>
 
-                {/* API KEY PROMPT BANNER - Shows ONLY if NO keys exist (Custom OR Shared) */}
                 {!hasCustomKey && !hasSharedKey && (
                     <div 
                        onClick={onOpenSettings}
@@ -297,10 +306,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     </div>
                 )}
 
-                {/* Discovery Grid */}
                 <div className="w-full max-w-4xl px-2 space-y-8 pb-10">
-                    
-                    {/* Shopping Trends Section */}
                     <div>
                          <div className="flex items-center justify-center gap-2 mb-4">
                              <Icons.ShoppingCart size={14} className="text-orange-500" />
@@ -325,7 +331,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                          </div>
                     </div>
 
-                    {/* Productivity Section */}
                     <div>
                         <div className="flex items-center justify-center gap-2 mb-4">
                              <Icons.Lightbulb size={14} className="text-blue-500" />
@@ -361,22 +366,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               key={msg.id || idx} 
               className={`flex gap-4 max-w-4xl mx-auto ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {/* Avatar for Model */}
               {msg.role === 'model' && (
                 <div className="mt-1 shrink-0 text-orange-600">
                   <Icons.Cat size={28} />
                 </div>
               )}
 
-              {/* Message Content */}
               <div 
                 className={`
                   relative max-w-[85%] md:max-w-[75%] rounded-2xl px-5 py-3.5 shadow-sm
                   ${msg.role === 'user' 
                     ? 'bg-orange-600 text-white rounded-tr-sm' 
                     : msg.isError 
-                        ? 'bg-red-50 border border-red-200 text-red-800 rounded-tl-sm' // Error State
-                        : 'bg-white text-gray-800 rounded-tl-sm border border-gray-200' // Normal State
+                        ? 'bg-red-50 border border-red-200 text-red-800 rounded-tl-sm'
+                        : 'bg-white text-gray-800 rounded-tl-sm border border-gray-200'
                   }
                 `}
               >
@@ -385,32 +388,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 ) : (
                   <>
                     <MarkdownMessage content={msg.text} />
-                    
-                    {/* Sources / Grounding - Only show if valid */}
-                    {msg.sources && msg.sources.length > 0 && !msg.isError && (
-                      <div className="mt-4 pt-3 border-t border-gray-100">
-                        <div className="text-xs font-semibold text-gray-500 mb-2 flex items-center gap-1">
-                          <Icons.Compass size={12} />
-                          <span>{t.sources}</span>
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                          {msg.sources.map((source, idx) => (
-                            <a 
-                              key={idx}
-                              href={wrapDeepLink(source.uri)} // APPLIED DEEP-LINK LOCKDOWN TO SOURCES
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 bg-gray-50 hover:bg-gray-100 text-xs text-blue-600 px-2 py-1.5 rounded-md border border-gray-200 transition-colors max-w-full truncate"
-                            >
-                              <span className="truncate max-w-[150px]">{source.title || new URL(source.uri).hostname}</span>
-                              <Icons.ExternalLink size={10} className="shrink-0 opacity-50" />
-                            </a>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Action Toolbar for AI Messages (Hide on Error) */}
+                    {/* Sources section removed as per user request */}
                     {!msg.isError && <MessageActions text={msg.text} language={language} />}
                   </>
                 )}
@@ -423,7 +401,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 )}
               </div>
 
-               {/* Avatar for User */}
                {msg.role === 'user' && (
                 <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center shrink-0 mt-1 text-gray-500">
                   <Icons.User size={16} />
@@ -433,7 +410,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           ))
         )}
         
-        {/* Loading Indicator */}
         {isLoading && (
           <div className="flex gap-4 max-w-4xl mx-auto">
              <div className="mt-1 shrink-0 text-orange-600">
@@ -454,7 +430,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       <div className="p-4 bg-[#FDFBF7] border-t border-[#E5E2D9] relative">
         <div className="max-w-4xl mx-auto relative">
           
-          {/* COMMAND DECK POPOVER */}
           {showCommandDeck && (
             <div className="absolute bottom-full left-0 mb-3 w-full sm:w-80 bg-white/95 backdrop-blur-xl border border-gray-200 rounded-2xl shadow-xl p-3 z-30 animate-fadeIn">
                 <div className="flex items-center justify-between mb-3 px-1">
@@ -483,10 +458,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
           )}
 
-          {/* INPUT CONTAINER */}
           <div className="w-full bg-white rounded-xl border border-gray-200 shadow-sm focus-within:ring-2 focus-within:ring-orange-200 focus-within:border-orange-300 transition-all flex items-end">
               
-              {/* TRIGGER BUTTON */}
               <button 
                 onClick={() => setShowCommandDeck(!showCommandDeck)}
                 className={`p-3 mb-0.5 rounded-xl transition-colors shrink-0 ${showCommandDeck ? 'text-orange-600 bg-orange-50' : 'text-gray-400 hover:text-orange-600 hover:bg-gray-50'}`}
