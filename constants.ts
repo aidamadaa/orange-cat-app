@@ -3,34 +3,39 @@
    SECURITY LOCK: PROTOCOL_V3_AUTHORITATIVE
    SYSTEM INTEGRITY: LOCKED
    ACCESS: ADMIN_ONLY
+   
+   WARNING: This registry is immutable. 
+   Modifications require administrative override.
 */
 
 // Primary Model (Reference only, protocol uses registry)
-export const GEMINI_MODEL = 'gemini-3-pro-preview';
+export const GEMINI_MODEL = 'gemini-2.0-pro-exp-02-05';
 
-// === DECUPLE AI REGISTRY ===
+// === DECUPLE AI REGISTRY (v3.2) ===
 // The Fallback Protocol: A prioritized hierarchy of 10 AI models.
-// The system automatically cascades down this list upon failure.
+// Strictly enforces Gemini 2.0 and 3.0 series. NO LEGACY MODELS.
 export const GEMINI_MODELS = [
-    // TIER 1: HIGH REASONING & PREVIEW
-    'gemini-3-pro-preview',             // 1. Top Tier (Reasoning)
-    'gemini-2.0-pro-exp-02-05',         // 2. Experimental Pro
-
-    // TIER 2: THINKING & FLASH
-    'gemini-2.0-flash-thinking-exp-01-21', // 3. Thinking (CoT)
-    'gemini-2.0-flash-exp',             // 4. Flash Experimental
-
-    // TIER 3: SPEED & STABILITY
-    'gemini-3-flash-preview',           // 5. Next Gen Flash
-    'gemini-exp-1206',                  // 6. Stable Snapshot
+    // TIER 1: INTELLIGENCE & REASONING (The "Brain")
+    'gemini-2.0-pro-exp-02-05',             // 1. Newest Pro Experimental
+    'gemini-2.0-flash-thinking-exp-01-21',  // 2. Deep Thinking (Chain of Thought)
     
-    // TIER 4: PRODUCTION
-    'gemini-2.5-flash-latest',          // 7. Stable Flash 2.5
-    'gemini-2.5-flash-lite-latest',     // 8. Lite (High QPS)
+    // TIER 2: HIGH-SPEED PREVIEWS (The "Reflex")
+    'gemini-3-pro-preview',                 // 3. Next-Gen Preview (Complex Tasks)
+    'gemini-2.0-flash-exp',                 // 4. Flash Experimental (Speed)
     
-    // TIER 5: SPECIALIZED & BACKUP
-    'learnlm-1.5-pro-experimental',     // 9. Education Specialized
-    'gemini-1.5-flash-8b-latest'        // 10. Micro Model (Last Resort)
+    // TIER 3: NEW LITE ARCHITECTURE
+    'gemini-2.0-flash-lite-preview-02-05',  // 5. Newest Lite Architecture
+    
+    // TIER 4: STABLE PREVIEWS
+    'gemini-3-flash-preview',               // 6. Next-Gen Flash
+    'gemini-exp-1206',                      // 7. Stable Snapshot
+    
+    // TIER 5: PRODUCTION ALIASES (Auto-updates to best available)
+    'gemini-flash-latest',                  // 8. General Flash Alias
+    'gemini-flash-lite-latest',             // 9. General Lite Alias
+    
+    // TIER 6: ULTIMATE FALLBACK
+    'gemini-2.0-flash'                      // 10. Base 2.0 Flash
 ];
 
 // Updated to V3 for Master Key Architecture
